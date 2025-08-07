@@ -43,11 +43,18 @@ done
 # Determine author: CLI override > env > git config
 author="${override_author:-${GIT_AUTHOR_NAME:-$(git config --get user.name)}}"
 
+# Compute time window: start at local midnight N-1 days ago (so days=1 means today).
+if [[ "$days" -eq 1 ]]; then
+  since_arg="midnight"          # today from 00:00 local time
+else
+  since_arg="$((days-1)) days ago midnight"  # e.g., days=3 => "2 days ago midnight"
+fi
+
 # Collect commits and aggregate numstat by calendar day.
-git log --since="${days} days ago" \
+git log --since="${since_arg}" \
         --author="${author}" \
         --date=short --pretty=format:'%ad' --numstat |
-awk '
+awk -v days="${days}" '
   NF==1 {
     day=$1                 # date line: YYYY-MM-DD
     commits[day]++         # count commits per day
@@ -70,11 +77,19 @@ awk '
     }
   }
   END {
-    PROCINFO["sorted_in"]="@ind_str_asc"   # chronological order
-    for (d in commits) {
-      net = (add[d]+0) + (del[d]+0)                 # touched code lines (add + del)
+    # Build list of last N calendar days (today inclusive)
+    for (i = 0; i < days; i++) {
+      cmd = "date -v -" i "d +%Y-%m-%d"
+      cmd | getline dt
+      close(cmd)
+      dates[i] = dt
+    }
+    # Print in chronological order (oldest ➜ newest)
+    for (i = days - 1; i >= 0; i--) {
+      d = dates[i]
+      net = (add[d]+0) + (del[d]+0)
       printf "%s\tcommits:%d\tcode:+%d/-%d (%+d)\ttest:+%d\tdoc:+%d\n",
-             d, commits[d], add[d]+0, del[d]+0, net, t_add[d]+0, d_add[d]+0
+             d, commits[d]+0, add[d]+0, del[d]+0, net, t_add[d]+0, d_add[d]+0
     }
   }'
 
