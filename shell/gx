@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# gx: Add, commit, and push in one go.
+# Usage: gx [commit message]
+# If no message is supplied, defaults to "Update".
+set -euo pipefail
+
+msg=${1:-"Update"}
+
+# Add all changes (tracked + untracked)
+git add -A
+
+# Commit only if there is anything staged
+if git diff --cached --quiet; then
+  echo "Nothing to commit. Skipping commit step."
+else
+  git commit -m "$msg"
+fi
+
+# Always attempt to push; if there is nothing new, git will say so
+git push
+

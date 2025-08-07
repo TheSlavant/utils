@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# gs: Quick shorthand for `git status`.
+# Passes any additional arguments through to git.
+set -euo pipefail
+
+git status "$@"
+
