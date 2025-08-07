@@ -4,7 +4,11 @@
 # If no message is supplied, defaults to "Update".
 set -euo pipefail
 
-msg=${1:-"Update"}
+if [[ $# -gt 0 ]]; then
+  msg="$*"
+else
+  msg="Update"
+fi
 
 # Add all changes (tracked + untracked)
 git add -A
