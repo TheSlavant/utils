@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# lines [N]
+# Daily code-change report. Measures useful work, not just raw volume.
+#
+# For each calendar day within the last N days (default: today) it prints:
+#   • commits:   number of commits by the current Git author
+#   • code:      lines added / removed in regular source files plus their net total
+#   • test:      lines added in tests (test/, __tests__/, *.spec.*, *.test.*)
+#   • doc:       lines added in markdown documentation (*.md)
+#
+# The script ignores generated or vendored files such as dist/, build/, node_modules/,
+# coverage/, snapshots, *.lock, and *.min.{js,css,ts} to prevent noise.
+#
+# Rationale: Good engineering is more than pumping out lines of code.  By exposing
+# commits, tests, docs, and total touched code lines this view rewards actions that
+# move the product forward, like refactors, cleanup, and documentation.
+#
+# Usage:
+#   lines                 # today (default)
+#   lines 7               # last 7 days
+#   lines 30              # last 30 days
+#   lines author=Jane     # today, author override
+#   lines 14 author=Joe   # 14 days for a different author
+#
+# You can still use the environment variable override:
+#   GIT_AUTHOR_NAME="Someone" lines 10
+
+set -euo pipefail
+
+# Default parameters
+days=1                                   # default: today
+override_author=""
+
+# Parse command-line arguments
+for arg in "$@"; do
+  if [[ "$arg" == author=* ]]; then
+    override_author="${arg#author=}"
+  elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+    days="$arg"
+  fi
+done
+
+# Determine author: CLI override > env > git config
+author="${override_author:-${GIT_AUTHOR_NAME:-$(git config --get user.name)}}"
+
+# Collect commits and aggregate numstat by calendar day.
+git log --since="${days} days ago" \
+        --author="${author}" \
+        --date=short --pretty=format:'%ad' --numstat |
+awk '
+  NF==1 {
+    day=$1                 # date line: YYYY-MM-DD
+    commits[day]++         # count commits per day
+    next
+  }
+  NF==3 {
+    file=$3                # numstat line: adds  dels  file
+
+    # Skip generated / vendor / minified files
+    if (file ~ /(^|\/)(dist|build|node_modules|vendor|\.next|out|coverage|snapshot|snapshots)\//) next
+    if (file ~ /(\.lock$|\.min\.(js|css|ts)$)/)                          next
+
+    # Classify test & doc files
+    if (file ~ /(test\/|__tests__\/|\.spec\.|\.test\.)/) {
+      t_add[day]+=$1; t_del[day]+=$2
+    } else if (file ~ /\.md$/) {
+      d_add[day]+=$1; d_del[day]+=$2
+    } else {
+      add[day]+=$1; del[day]+=$2
+    }
+  }
+  END {
+    PROCINFO["sorted_in"]="@ind_str_asc"   # chronological order
+    for (d in commits) {
+      net = (add[d]+0) + (del[d]+0)                 # touched code lines (add + del)
+      printf "%s\tcommits:%d\tcode:+%d/-%d (%+d)\ttest:+%d\tdoc:+%d\n",
+             d, commits[d], add[d]+0, del[d]+0, net, t_add[d]+0, d_add[d]+0
+    }
+  }'
+
