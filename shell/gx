@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
+
 # gx: Add, commit, and push in one go.
+
+# Prerequisites:
+# Add this to your .bashrc or .zshrc:
+# gx() { /Users/yaroslavshipilov/Developer/utils/shell/gx "$@"; } # Forward all args to the script
+# alias gx='noglob gx' # Ensure arguments to gx are not glob-expanded (so parentheses in commit message are literal)
+
 # Usage: gx [commit message]
 # If no message is supplied, defaults to "Update".
+
 set -euo pipefail
 
 if [[ $# -gt 0 ]]; then
